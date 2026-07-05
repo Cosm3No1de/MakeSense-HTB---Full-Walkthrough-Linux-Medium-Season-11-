@@ -373,28 +373,31 @@
         <p><span class="success">✔</span> Flag de root obtenida.</p>
     </section>
 
-    <!-- EXPLICACIÓN DETALLADA DE LA LÓGICA DEL EXPLOIT -->
+    <!-- EXPLICACIÓN DETALLADA DE LA CONSTRUCCIÓN DEL EXPLOIT -->
     <section id="logic" class="step" style="border-left-color: #8e44ad;">
-        <h2>🧩 Lógica del exploit paso a paso</h2>
-        <div class="meta">Cómo se construyó el ataque completo</div>
+        <h2>🧩 Construcción paso a paso del exploit (manual)</h2>
+        <div class="meta">Cómo se fue desarrollando el ataque, sin código completo</div>
 
         <p><strong>Objetivo:</strong> Obtener ejecución de comandos como root en el servidor.</p>
 
+        <p>A continuación se describe el proceso manual que seguimos para construir el exploit, pieza por pieza, sin necesidad de un script completo predefinido.</p>
+
         <ol style="list-style-type: decimal; padding-left: 1.2rem;">
-            <li><strong>Enumeración de superficie:</strong> Se detecta WordPress 7.0 con el tema <code>webagency</code>, que incluye funcionalidad de transcripción de voz mediante Whisper.</li>
-            <li><strong>Extracción de la clave de cifrado:</strong> El archivo <code>whisper-wrapper.js</code> contiene una clave AES-GCM hardcodeada. Esto permite cifrar payloads arbitrarios que el backend descifrará y almacenará sin validación.</li>
-            <li><strong>Inyección de XSS persistente:</strong> Se envía un payload cifrado que contiene una etiqueta <code>&lt;script&gt;</code> que carga un archivo JS desde nuestro servidor. El backend guarda este script en el contenido de un post de WordPress (a través de la acción <code>save_voice_results</code>).</li>
-            <li><strong>Creación de usuario administrador:</strong> El script JS inyectado, al ser ejecutado por el bot administrador cuando visita la página, realiza una petición a <code>/wp-admin/user-new.php</code> con el nonce correspondiente y crea un usuario con rol <code>administrator</code>.</li>
-            <li><strong>Subida de plugin malicioso:</strong> Con el usuario administrador recién creado, se accede al panel de WordPress y se sube un plugin ZIP que contiene un web shell simple (<code>wshell.php</code>). Esto otorga ejecución remota de comandos como <code>www-data</code>.</li>
-            <li><strong>Extracción de credenciales:</strong> Desde el shell RCE, se lee <code>/var/www/html/wp-config.php</code> y se extrae la contraseña de la base de datos, que es reutilizada por el usuario del sistema <code>walter</code>.</li>
-            <li><strong>Acceso SSH:</strong> Con las credenciales de <code>walter</code>, se establece una conexión SSH y se lee la flag de usuario.</li>
-            <li><strong>Detección del servicio OCR interno:</strong> Se observa que en el puerto <code>127.0.0.1:8001</code> corre un servicio PHP que realiza OCR sobre imágenes y guarda el texto extraído en archivos ejecutables dentro del directorio web.</li>
-            <li><strong>Escalada por OCR:</strong> Se genera una imagen con el texto <code>&lt;?php system('chmod +s /bin/bash'); ?&gt;</code>. Se envía al servicio OCR, que procesa la imagen y guarda el código PHP en un archivo accesible desde la web.</li>
-            <li><strong>Ejecución como root:</strong> Al acceder a ese archivo PHP, se ejecuta el comando <code>chmod +s /bin/bash</code>, otorgando permisos SUID a la shell. Luego, con <code>/bin/bash -p</code> se obtiene una shell con privilegios de root y se lee la flag final.</li>
+            <li><strong>Extracción de la clave de cifrado:</strong> El primer paso fue localizar la clave en el código JavaScript del tema. Con esa clave, pudimos cifrar payloads arbitrarios para que el backend los aceptara.</li>
+            <li><strong>Prueba de inyección de XSS:</strong> Enviamos un payload de prueba con una etiqueta <code>&lt;script&gt;</code> simple (por ejemplo, <code>&lt;script&gt;alert(1)&lt;/script&gt;</code>) para confirmar que el backend almacenaba el contenido sin sanitizar y que se ejecutaba al visitar la página.</li>
+            <li><strong>Diseño del payload XSS:</strong> Para crear un usuario administrador, necesitábamos un script que, desde el contexto del administrador, realizara una petición a <code>/wp-admin/user-new.php</code>. Esto requería obtener el nonce de seguridad de la página. El script debía extraerlo y luego enviar la solicitud POST con los datos del nuevo usuario.</li>
+            <li><strong>Servidor HTTP para servir el script:</strong> Para alojar el script <code>x.js</code>, levantamos un servidor HTTP sencillo en Python (usando <code>http.server</code>) que sirviera el archivo con los cabeceras adecuadas para que el navegador lo ejecutara sin restricciones CORS.</li>
+            <li><strong>Inyección del payload:</strong> Usando un script en Python, construimos el objeto <code>transcription</code> con la etiqueta <code>&lt;script&gt;</code> que apuntaba a nuestro servidor. Ciframos ese objeto con la clave extraída (usando AES‑GCM con IV aleatorio) y lo enviamos a <code>admin-ajax.php?action=save_voice_results</code>.</li>
+            <li><strong>Espera a la ejecución del bot:</strong> Después de inyectar el payload, esperamos unos segundos a que el bot administrador visitara la página y ejecutara el script. Verificamos la creación del usuario mediante una petición de login con las nuevas credenciales.</li>
+            <li><strong>Subida del plugin web shell:</strong> Con el usuario administrador, accedimos al panel y subimos un plugin ZIP que contenía un archivo <code>wshell.php</code> con el código <code>&lt;?php system($_REQUEST['c']); ?&gt;</code>. Esto nos dio ejecución remota de comandos.</li>
+            <li><strong>Extracción de credenciales de la base de datos:</strong> Desde el shell RCE, leímos <code>/var/www/html/wp-config.php</code> y extrajimos la contraseña de la base de datos, que era la misma que la del usuario <code>walter</code>.</li>
+            <li><strong>Acceso SSH y flag de usuario:</strong> Usamos <code>sshpass</code> para conectar por SSH con las credenciales de <code>walter</code> y leímos <code>~/user.txt</code>.</li>
+            <li><strong>Abuso del servicio OCR:</strong> Detectamos el servicio OCR en el puerto <code>8001</code> y observamos que guardaba el texto extraído en archivos dentro del directorio web. Generamos una imagen con el texto <code>&lt;?php system('chmod +s /bin/bash'); ?&gt;</code> usando la librería PIL de Python y la enviamos al servicio mediante <code>curl</code> con autenticación básica (credenciales de <code>walter</code>). El OCR procesó la imagen y guardó el código PHP en un archivo accesible.</li>
+            <li><strong>Ejecución como root:</strong> Al acceder a ese archivo PHP (<code>/saved/pwn.php</code>), se ejecutó el comando que otorgaba SUID a <code>/bin/bash</code>. Luego, con <code>/bin/bash -p</code>, obtuvimos una shell con privilegios de root y leímos <code>/root/root.txt</code>.</li>
         </ol>
 
         <p><span class="success">💡</span> <strong>Clave del éxito:</strong> La combinación de una clave de cifrado expuesta, la capacidad de inyectar XSS persistente, y el uso de un servicio OCR mal configurado que guarda archivos ejecutables en la raíz web.</p>
-        <p>El script completo de Python (disponible en este repositorio) automatiza todas estas fases, incluyendo la generación de la imagen OCR, la interacción con el servicio interno y la recolección de flags.</p>
+        <p>Este proceso manual se fue automatizando progresivamente con Python, pero cada paso se validó primero de forma interactiva para garantizar que funcionaba. El resultado final fue un script completo que integra todas las fases, pero que no se incluye aquí para evitar problemas con las políticas de HTB.</p>
     </section>
 
     <!-- Conclusión -->
