@@ -84,6 +84,66 @@
             color: #2ecc71;
         }
 
+        /* Executive summary */
+        .summary {
+            background: #0f1724;
+            border: 1px solid #2ecc71;
+            border-radius: 10px;
+            padding: 1.8rem 2rem;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.05);
+        }
+        .summary h2 {
+            color: #2ecc71;
+            font-size: 1.4rem;
+            margin-bottom: 0.8rem;
+        }
+        .summary p {
+            margin-bottom: 0.6rem;
+        }
+        .summary .highlight-box {
+            background: #0b0e14;
+            border-left: 3px solid #f1c40f;
+            padding: 0.8rem 1.2rem;
+            margin: 1rem 0;
+            color: #c5c8c6;
+        }
+        .summary .highlight-box strong {
+            color: #f1c40f;
+        }
+
+        /* Techniques table */
+        .tech-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .tech-table th {
+            text-align: left;
+            color: #2ecc71;
+            border-bottom: 2px solid #2c3e50;
+            padding: 0.6rem 0.8rem;
+            font-weight: 600;
+        }
+        .tech-table td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid #1e2a36;
+            vertical-align: top;
+        }
+        .tech-table tr:last-child td {
+            border-bottom: none;
+        }
+        .tech-table .badge-tech {
+            background: #1e2a36;
+            color: #2ecc71;
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
         /* Steps */
         .step {
             background: #12181f;
@@ -156,6 +216,9 @@
         .step .success {
             color: #2ecc71;
         }
+        .step .info {
+            color: #3498db;
+        }
 
         /* Code snippets */
         .code-snip {
@@ -218,6 +281,8 @@
         @media (max-width: 700px) {
             header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
             .step { padding: 1.2rem; }
+            .tech-table { font-size: 0.8rem; }
+            .tech-table td, .tech-table th { padding: 0.4rem 0.5rem; }
         }
     </style>
 </head>
@@ -233,6 +298,60 @@
         <h1>◈ MakeSense <small>Linux · Medium · HTB Season 11</small></h1>
         <span class="badge">🔒 Sensitive data redacted</span>
     </header>
+
+    <!-- Executive Summary -->
+    <section class="summary">
+        <h2>📌 Resumen ejecutivo</h2>
+        <p><strong>MakeSense</strong> es una máquina de dificultad <em>Medium</em> de la Season 11 de Hack The Box. El vector de ataque principal <strong>no es un CVE conocido</strong>, sino una combinación de malas prácticas en un tema personalizado de WordPress:</p>
+        <div class="highlight-box">
+            <strong>Clave de cifrado AES‑GCM hardcodeada</strong> en JavaScript del lado cliente ·  
+            <strong>Inyección de XSS persistente</strong> a través de transcripción de voz ·  
+            <strong>Creación de usuario administrador</strong> mediante CSRF + XSS ·  
+            <strong>Subida de plugin malicioso</strong> para RCE ·  
+            <strong>Reutilización de credenciales</strong> para SSH ·  
+            <strong>Abuso de servicio OCR interno</strong> para escalar a <strong>root</strong>.
+        </div>
+        <p>El resultado final es un script en Python que automatiza todas las fases, pero en esta guía se explica el <strong>proceso manual paso a paso</strong> para que puedas entender la lógica subyacente.</p>
+    </section>
+
+    <!-- Techniques Table -->
+    <section class="step" style="border-left-color: #8e44ad; padding-bottom: 1rem;">
+        <h2>🧠 Técnicas utilizadas (sin CVE público)</h2>
+        <table class="tech-table">
+            <thead>
+                <tr>
+                    <th>Técnica</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge-tech">Hardcoded crypto key</span></td>
+                    <td>La clave de cifrado está expuesta en el código fuente del tema.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tech">XSS persistente</span></td>
+                    <td>Se inyecta una etiqueta <code>&lt;script&gt;</code> que el backend almacena y ejecuta en el contexto del administrador.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tech">User creation via CSRF</span></td>
+                    <td>El script XSS aprovecha el nonce de WordPress para crear un nuevo administrador.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tech">Malicious plugin upload</span></td>
+                    <td>Se sube un plugin ZIP con un web shell para obtener RCE.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tech">Credential reuse</span></td>
+                    <td>La contraseña de la base de datos es la misma que la del usuario <code>walter</code>.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tech">OCR‑to‑RCE</span></td>
+                    <td>Un servicio interno de OCR guarda el texto reconocido en archivos PHP, permitiendo ejecutar código como root.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
 
     <nav>
         <a href="#enum">Enumeration</a>
@@ -266,20 +385,19 @@
     <!-- STEP 2 -->
     <section id="crypto" class="step">
         <h2><span class="step-num">2</span> Clave de cifrado expuesta</h2>
-        <div class="meta">🔑 Hardcoded AES-GCM key en JavaScript</div>
+        <div class="meta">🔑 Hardcoded AES‑GCM key en JavaScript</div>
         <p>El archivo <code>/wp-content/themes/webagency/assets/js/whisper/whisper-wrapper.js</code> contiene una clave de cifrado estática:</p>
         <div class="code-snip">
             <span class="comment">// Symmetric encryption key (must match server-side)</span>
             <span class="keyword">const</span> ENCRYPTION_KEY = <span class="string">'bLs6z8iv3gWpsvyeabFosDjb4YQe7jdU13rI'</span>;
         </div>
-        <p>El flujo de la aplicación:</p>
-        <ul>
+        <p><strong>Flujo de la aplicación:</strong></p>
+        <ol>
             <li>El cliente graba audio → se transcribe con Whisper → se genera un resumen.</li>
-            <li>El payload (<code>{transcription, summary}</code>) se cifra con AES-GCM usando esa clave.</li>
+            <li>El payload (<code>{transcription, summary}</code>) se cifra con AES‑GCM usando esa clave.</li>
             <li>El backend (vía <code>admin-ajax.php?action=save_voice_results</code>) descifra y guarda el resultado <strong>sin sanitizar</strong>.</li>
-        </ul>
-        <p><span class="danger">⚡</span> <strong>Vulnerabilidad:</strong> Podemos cifrar cualquier payload y enviarlo al backend; el contenido se almacenará tal cual.</p>
-        <p>Esto permite inyectar código JavaScript (XSS) o código PHP directamente en el campo <code>transcription</code>.</p>
+        </ol>
+        <p><span class="danger">⚡</span> <strong>Vulnerabilidad:</strong> Podemos cifrar cualquier payload y enviarlo al backend; el contenido se almacenará tal cual, permitiendo inyectar código JavaScript (XSS) o PHP directamente en el campo <code>transcription</code>.</p>
     </section>
 
     <!-- STEP 3 -->
@@ -296,10 +414,10 @@
             <span class="comment">// Se cifra con la clave extraída y se envía a admin-ajax.php</span>
         </div>
         <p>El script externo (<code>x.js</code>) realiza lo siguiente:</p>
-        <ul>
+        <ol>
             <li>Obtiene el nonce de creación de usuario desde <code>/wp-admin/user-new.php</code>.</li>
             <li>Envía una petición POST para crear un nuevo usuario con rol <strong>administrator</strong>.</li>
-        </ul>
+        </ol>
         <p>Cuando el bot administrador visita la página que contiene el comentario malicioso, el XSS se ejecuta y el usuario <code>pwn</code> es creado.</p>
         <div class="cmd-block">
             <span class="prompt">$</span> python3 exploit.py 10.129.29.150
@@ -333,7 +451,7 @@
     <!-- STEP 5 -->
     <section id="lateral" class="step">
         <h2><span class="step-num">5</span> Movimiento lateral – credenciales SSH</h2>
-        <div class="meta">🔐 Lectura de wp-config.php y extracción de contraseña</div>
+        <div class="meta">🔐 Lectura de wp‑config.php y extracción de contraseña</div>
         <p>Desde el shell RCE se lee el archivo <code>/var/www/html/wp-config.php</code> para obtener las credenciales de la base de datos.</p>
         <div class="code-snip">
             <span class="comment">// Extracción de la contraseña</span>
@@ -380,7 +498,7 @@
 
         <p><strong>Objetivo:</strong> Obtener ejecución de comandos como root en el servidor.</p>
 
-        <p>A continuación se describe el proceso manual que seguimos para construir el exploit, pieza por pieza, sin necesidad de un script completo predefinido.</p>
+        <p>A continuación se describe el proceso manual que seguimos para construir el exploit, pieza por pieza, sin necesidad de un script completo predefinido. Cada fase se validó de forma interactiva antes de automatizarla.</p>
 
         <ol style="list-style-type: decimal; padding-left: 1.2rem;">
             <li><strong>Extracción de la clave de cifrado:</strong> El primer paso fue localizar la clave en el código JavaScript del tema. Con esa clave, pudimos cifrar payloads arbitrarios para que el backend los aceptara.</li>
