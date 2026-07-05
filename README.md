@@ -13,8 +13,17 @@
 [![Hack The Box](https://img.shields.io/badge/HackTheBox-MakeSense-9cf)](https://www.hackthebox.com)
 [![Season](https://img.shields.io/badge/Season-11-orange)]()
 
-> **Guía completa y detallada para resolver la máquina MakeSense de Hack The Box (Season 11, dificultad Medium).**  
-> El ataque explora una vulnerabilidad en un tema de WordPress que expone una clave de cifrado AES‑GCM en JavaScript, permitiendo inyectar XSS persistente para crear un usuario administrador. A partir de ahí, se sube un plugin malicioso para obtener ejecución remota de comandos (RCE), se extraen credenciales SSH desde `wp-config.php`, y se escala a root abusando de un servicio OCR interno que guarda código PHP ejecutable en el directorio web.
+## 🔬 Técnicas utilizadas / CVEs
+
+> **No se utilizó ningún CVE público específico** en esta máquina. La vulnerabilidad principal reside en la **lógica del tema personalizado `webagency`** de WordPress.  
+> Las técnicas empleadas fueron:
+
+- **Clave de cifrado hardcodeada** (AES‑GCM expuesta en JavaScript del lado cliente)
+- **Inyección de XSS persistente** a través de la funcionalidad de transcripción de voz
+- **Creación de usuario administrador** en WordPress vía CSRF + XSS
+- **Subida de plugin malicioso** para obtener ejecución remota de comandos (RCE)
+- **Reutilización de credenciales** (extracción de contraseña de `wp-config.php` para acceso SSH)
+- **Abuso de servicio OCR interno** para escalar privilegios a root (guardado de código PHP ejecutable)
 
 ---
 
@@ -26,7 +35,7 @@
 4. [Ejecución remota de comandos (RCE)](#4-ejecución-remota-de-comandos-rce)  
 5. [Movimiento lateral – credenciales SSH](#5-movimiento-lateral--credenciales-ssh)  
 6. [Escalada de privilegios vía OCR interno](#6-escalada-de-privilegios-vía-ocr-interno)  
-7. [Lógica del exploit paso a paso](#-lógica-del-exploit-paso-a-paso)  
+7. [Construcción paso a paso del exploit (manual)](#-construcción-paso-a-paso-del-exploit-manual)  
 8. [Conclusión y lecciones](#-conclusión-y-lecciones)
 
 ---
@@ -165,33 +174,37 @@ $ /bin/bash -p
 [REDACTED_ROOT_FLAG]
 
 ✔ Flag de root obtenida.
-🧩 Lógica del exploit paso a paso
+🧩 Construcción paso a paso del exploit (manual)
 
 Objetivo: Obtener ejecución de comandos como root en el servidor.
 
-    Enumeración de superficie: Se detecta WordPress 7.0 con el tema webagency, que incluye funcionalidad de transcripción de voz mediante Whisper.
+A continuación se describe el proceso manual que se siguió para construir el exploit, pieza por pieza, sin necesidad de un script completo predefinido.
 
-    Extracción de la clave de cifrado: El archivo whisper-wrapper.js contiene una clave AES‑GCM hardcodeada. Esto permite cifrar payloads arbitrarios que el backend descifrará y almacenará sin validación.
+    Extracción de la clave de cifrado: El primer paso fue localizar la clave en el código JavaScript del tema. Con esa clave, pudimos cifrar payloads arbitrarios para que el backend los aceptara.
 
-    Inyección de XSS persistente: Se envía un payload cifrado que contiene una etiqueta <script> que carga un archivo JS desde nuestro servidor. El backend guarda este script en el contenido de un post de WordPress (a través de la acción save_voice_results).
+    Prueba de inyección de XSS: Enviamos un payload de prueba con una etiqueta <script> simple (por ejemplo, <script>alert(1)</script>) para confirmar que el backend almacenaba el contenido sin sanitizar y que se ejecutaba al visitar la página.
 
-    Creación de usuario administrador: El script JS inyectado, al ser ejecutado por el bot administrador cuando visita la página, realiza una petición a /wp-admin/user-new.php con el nonce correspondiente y crea un usuario con rol administrator.
+    Diseño del payload XSS: Para crear un usuario administrador, necesitábamos un script que, desde el contexto del administrador, realizara una petición a /wp-admin/user-new.php. Esto requería obtener el nonce de seguridad de la página. El script debía extraerlo y luego enviar la solicitud POST con los datos del nuevo usuario.
 
-    Subida de plugin malicioso: Con el usuario administrador recién creado, se accede al panel de WordPress y se sube un plugin ZIP que contiene un web shell simple (wshell.php). Esto otorga ejecución remota de comandos como www-data.
+    Servidor HTTP para servir el script: Para alojar el script x.js, levantamos un servidor HTTP sencillo en Python (usando http.server) que sirviera el archivo con los cabeceras adecuadas para que el navegador lo ejecutara sin restricciones CORS.
 
-    Extracción de credenciales: Desde el shell RCE, se lee /var/www/html/wp-config.php y se extrae la contraseña de la base de datos, que es reutilizada por el usuario del sistema walter.
+    Inyección del payload: Usando un script en Python, construimos el objeto transcription con la etiqueta <script> que apuntaba a nuestro servidor. Ciframos ese objeto con la clave extraída (usando AES‑GCM con IV aleatorio) y lo enviamos a admin-ajax.php?action=save_voice_results.
 
-    Acceso SSH: Con las credenciales de walter, se establece una conexión SSH y se lee la flag de usuario.
+    Espera a la ejecución del bot: Después de inyectar el payload, esperamos unos segundos a que el bot administrador visitara la página y ejecutara el script. Verificamos la creación del usuario mediante una petición de login con las nuevas credenciales.
 
-    Detección del servicio OCR interno: Se observa que en el puerto 127.0.0.1:8001 corre un servicio PHP que realiza OCR sobre imágenes y guarda el texto extraído en archivos ejecutables dentro del directorio web.
+    Subida del plugin web shell: Con el usuario administrador, accedimos al panel y subimos un plugin ZIP que contenía un archivo wshell.php con el código <?php system($_REQUEST['c']); ?>. Esto nos dio ejecución remota de comandos.
 
-    Escalada por OCR: Se genera una imagen con el texto <?php system('chmod +s /bin/bash'); ?>. Se envía al servicio OCR, que procesa la imagen y guarda el código PHP en un archivo accesible desde la web.
+    Extracción de credenciales de la base de datos: Desde el shell RCE, leímos /var/www/html/wp-config.php y extrajimos la contraseña de la base de datos, que era la misma que la del usuario walter.
 
-    Ejecución como root: Al acceder a ese archivo PHP, se ejecuta el comando chmod +s /bin/bash, otorgando permisos SUID a la shell. Luego, con /bin/bash -p se obtiene una shell con privilegios de root y se lee la flag final.
+    Acceso SSH y flag de usuario: Usamos sshpass para conectar por SSH con las credenciales de walter y leímos ~/user.txt.
+
+    Abuso del servicio OCR: Detectamos el servicio OCR en el puerto 8001 y observamos que guardaba el texto extraído en archivos dentro del directorio web. Generamos una imagen con el texto <?php system('chmod +s /bin/bash'); ?> usando la librería PIL de Python y la enviamos al servicio mediante curl con autenticación básica (credenciales de walter). El OCR procesó la imagen y guardó el código PHP en un archivo accesible.
+
+    Ejecución como root: Al acceder a ese archivo PHP (/saved/pwn.php), se ejecutó el comando que otorgaba SUID a /bin/bash. Luego, con /bin/bash -p, obtuvimos una shell con privilegios de root y leímos /root/root.txt.
 
 💡 Clave del éxito: La combinación de una clave de cifrado expuesta, la capacidad de inyectar XSS persistente, y el uso de un servicio OCR mal configurado que guarda archivos ejecutables en la raíz web.
 
-El script completo de Python (disponible en este repositorio) automatiza todas estas fases, incluyendo la generación de la imagen OCR, la interacción con el servicio interno y la recolección de flags.
+Este proceso manual se fue automatizando progresivamente con Python, pero cada paso se validó primero de forma interactiva para garantizar que funcionaba. El resultado final fue un script completo que integra todas las fases, pero que no se incluye aquí para evitar problemas con las políticas de HTB.
 🔮 Conclusión y lecciones
 
     Claves hardcodeadas en el lado cliente permiten cifrar payloads arbitrarios y engañar al backend.
@@ -210,7 +223,3 @@ El código completo del exploit (adaptado) está disponible en este repositorio,
     Hack The Box - MakeSense
 
     Mi perfil en Linktree — cosmenoide dev
-
-    Guía para fines educativos · Hecho con ❤️
-
-
